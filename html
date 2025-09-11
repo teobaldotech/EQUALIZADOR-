@@ -1,55 +1,104 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Equalizador Digital</title>
+  <title>Equalizador com Presets</title>
   <style>
-    body {
-      background-color: #111;
-      color: white;
-      font-family: sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-    }
-    canvas {
-      display: block;
-      margin: 20px auto;
-      background-color: #222;
-      border: 1px solid #444;
-    }
-    audio {
-      margin-top: 20px;
-    }
+    body { background: #111; color: #fff; font-family: sans-serif; text-align: center; }
+    input[type="range"] { width: 300px; margin: 10px; }
+    canvas { display: block; margin: 20px auto; background: #222; }
+    button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+    label span { margin-left: 10px; color: #0f0; }
   </style>
 </head>
 <body>
+  <h2>🎧 Equalizador com Presets</h2>
+  <input type="file" id="fileInput" accept="audio/*"><br>
+  <audio id="audio" controls></audio><br>
 
-  <h1>🎧 Equalizador Digital</h1>
-  <audio id="audio" controls src="sua-musica.mp3"></audio>
+  <label>Grave <span id="bassVal">0</span></label><br>
+  <input type="range" id="bass" min="-30" max="30" value="0"><br>
+  <label>Médio <span id="midVal">0</span></label><br>
+  <input type="range" id="mid" min="-30" max="30" value="0"><br>
+  <label>Agudo <span id="trebleVal">0</span></label><br>
+  <input type="range" id="treble" min="-30" max="30" value="0"><br>
+
+  <button onclick="setPreset('rock')">🎸 Rock</button>
+  <button onclick="setPreset('jazz')">🎷 Jazz</button>
+  <button onclick="setPreset('pop')">🎤 Pop</button>
+  <button onclick="resetFilters()">🔄 Resetar</button>
+  <button onclick="exportSettings()">📤 Exportar Ajustes</button>
+
   <canvas id="canvas" width="800" height="300"></canvas>
 
   <script>
-    const audio = document.getElementById("audio");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    const fileInput = document.getElementById('fileInput');
+    const audio = document.getElementById('audio');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const bassControl = document.getElementById('bass');
+    const midControl = document.getElementById('mid');
+    const trebleControl = document.getElementById('treble');
+
+    const bassVal = document.getElementById('bassVal');
+    const midVal = document.getElementById('midVal');
+    const trebleVal = document.getElementById('trebleVal');
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const analyser = audioCtx.createAnalyser();
-    const source = audioCtx.createMediaElementSource(audio);
-
-    source.connect(analyser);
-    analyser.connect(audioCtx.destination);
-
     analyser.fftSize = 256;
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
+
+    const source = audioCtx.createMediaElementSource(audio);
+
+    const bassFilter = audioCtx.createBiquadFilter();
+    bassFilter.type = "lowshelf";
+    bassFilter.frequency.value = 200;
+
+    const midFilter = audioCtx.createBiquadFilter();
+    midFilter.type = "peaking";
+    midFilter.frequency.value = 1000;
+    midFilter.Q.value = 1;
+
+    const trebleFilter = audioCtx.createBiquadFilter();
+    trebleFilter.type = "highshelf";
+    trebleFilter.frequency.value = 3000;
+
+    source.connect(bassFilter);
+    bassFilter.connect(midFilter);
+    midFilter.connect(trebleFilter);
+    trebleFilter.connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    bassControl.oninput = () => {
+      bassFilter.gain.value = bassControl.value;
+      bassVal.textContent = bassControl.value;
+    };
+    midControl.oninput = () => {
+      midFilter.gain.value = midControl.value;
+      midVal.textContent = midControl.value;
+    };
+    trebleControl.oninput = () => {
+      trebleFilter.gain.value = trebleControl.value;
+      trebleVal.textContent = trebleControl.value;
+    };
+
+    fileInput.addEventListener('change', function () {
+      const file = this.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        audio.src = url;
+        audio.play();
+      }
+    });
 
     function draw() {
       requestAnimationFrame(draw);
       analyser.getByteFrequencyData(dataArray);
 
-      ctx.fillStyle = "#222";
+      ctx.fillStyle = '#111';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const barWidth = (canvas.width / bufferLength) * 2.5;
@@ -57,11 +106,7 @@
 
       for (let i = 0; i < bufferLength; i++) {
         const barHeight = dataArray[i];
-        const r = barHeight + 25;
-        const g = 250 - barHeight;
-        const b = 50;
-
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillStyle = `hsl(${barHeight * 2}, 100%, 50%)`;
         ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
         x += barWidth + 1;
       }
@@ -71,7 +116,45 @@
       audioCtx.resume();
       draw();
     };
-  </script>
 
+    function setPreset(style) {
+      const presets = {
+        rock: { bass: 20, mid: 5, treble: 15 },
+        jazz: { bass: 10, mid: 15, treble: 5 },
+        pop:  { bass: 15, mid: 10, treble: 20 }
+      };
+      const preset = presets[style];
+      bassControl.value = preset.bass;
+      midControl.value = preset.mid;
+      trebleControl.value = preset.treble;
+      bassFilter.gain.value = preset.bass;
+      midFilter.gain.value = preset.mid;
+      trebleFilter.gain.value = preset.treble;
+      bassVal.textContent = preset.bass;
+      midVal.textContent = preset.mid;
+      trebleVal.textContent = preset.treble;
+    }
+
+    function resetFilters() {
+      bassControl.value = 0;
+      midControl.value = 0;
+      trebleControl.value = 0;
+      bassFilter.gain.value = 0;
+      midFilter.gain.value = 0;
+      trebleFilter.gain.value = 0;
+      bassVal.textContent = 0;
+      midVal.textContent = 0;
+      trebleVal.textContent = 0;
+    }
+
+    function exportSettings() {
+      const settings = {
+        bass: bassFilter.gain.value,
+        mid: midFilter.gain.value,
+        treble: trebleFilter.gain.value
+      };
+      alert("Ajustes exportados:\n" + JSON.stringify(settings, null, 2));
+    }
+  </script>
 </body>
 </html>
