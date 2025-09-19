@@ -196,4 +196,22 @@
       const file = this.files[0];
       if (!file) return;
 
-      const reader
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const settings = JSON.parse(e.target.result);
+          if (settings.bass !== undefined && settings.mid !== undefined && settings.treble !== undefined) {
+            applySettings(settings);
+            presetLabel.textContent = "Preset: Importado";
+          } else {
+            alert("Arquivo de configurações inválido.");
+          }
+        } catch (error) {
+          alert("Erro ao importar configurações. Verifique o arquivo.");
+        }
+      };
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
